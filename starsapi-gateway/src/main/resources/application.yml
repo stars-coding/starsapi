@@ -1,0 +1,50 @@
+spring:
+  profiles:
+    default: dev
+
+## 开发环境 配置
+#server:
+#  address: 0.0.0.0
+#  port: 28002
+#
+## Spring 配置
+#spring:
+#  application:
+#    name: starsapi-gateway
+#  # 默认 dev 环境
+#  #  profiles:
+#  #    active: dev
+#  config:
+#    activate:
+#      on-profile:
+#        - dev
+#  cloud:
+#    gateway:
+#      routes:
+#        - id: api_route
+#          # 开发环境-本地地址-模拟接口地址
+#          uri: http://localhost:28002
+#          predicates:
+#            - Path=/api/**
+#          filter:
+#            - AddRequestHeader=Info, StarsFlowStaining
+#
+## Dubbo 配置
+#dubbo:
+#  application:
+#    name: starsapi
+#    qos:
+#      # 是否启动QoS
+#      enable: true
+#      # 启动QoS绑定的端口
+#      port: 33010
+#      # 是否允许远程访问
+#      foregin:
+#        ip: true
+#  protocol:
+#    name: dubbo
+#    port: 22010
+#  registry:
+#    id: nacos-registry
+#    # 开发环境-本地地址-Nacos地址
+#    address: nacos://localhost:8848

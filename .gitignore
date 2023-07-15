@@ -8,6 +8,8 @@ starsapi-backend/src/main/resources/application-dev.yml
 starsapi-backend/src/main/resources/application-prod.yml
 starsapi-gateway/src/main/resources/application-dev.yml
 starsapi-gateway/src/main/resources/application-prod.yml
+starsapi-interfaces/src/main/resources/application-dev.yml
+starsapi-interfaces/src/main/resources/application-prod.yml
 starsapi-common/src/main/resources/application-dev.yml
 starsapi-common/src/main/resources/application-prod.yml
 
@@ -123,35 +125,3 @@ buildNumber.properties
 .mvn/timing.properties
 # https://github.com/takari/maven-wrapper#usage-without-binary-jar
 .mvn/wrapper/maven-wrapper.jar
-
-starsapi-common/src/main/resources/
-starsapi-frontend/.editorconfig
-starsapi-frontend/.eslintignore
-starsapi-frontend/.eslintrc.js
-starsapi-frontend/.gitignore
-starsapi-frontend/.prettierignore
-starsapi-frontend/.prettierrc.js
-starsapi-frontend/Dockerfile
-starsapi-frontend/README.md
-starsapi-frontend/config/
-starsapi-frontend/jest.config.ts
-starsapi-frontend/jsconfig.json
-starsapi-frontend/mock/
-starsapi-frontend/package.json
-starsapi-frontend/pnpm-lock.yaml
-starsapi-frontend/public/
-starsapi-frontend/src/access.ts
-starsapi-frontend/src/app.tsx
-starsapi-frontend/src/components/
-starsapi-frontend/src/global.less
-starsapi-frontend/src/global.tsx
-starsapi-frontend/src/manifest.json
-starsapi-frontend/src/pages/
-starsapi-frontend/src/requestConfig.ts
-starsapi-frontend/src/service-worker.js
-starsapi-frontend/src/services/
-starsapi-frontend/src/typings.d.ts
-starsapi-frontend/tsconfig.json
-starsapi-gateway/src/
-starsapi-interfaces/src/main/resources/application-dev.yml
-starsapi-interfaces/src/main/resources/application-prod.yml
