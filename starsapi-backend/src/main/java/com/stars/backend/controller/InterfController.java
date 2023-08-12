@@ -9,12 +9,14 @@ import com.stars.backend.annotation.AuthCheck;
 import com.stars.backend.common.*;
 import com.stars.backend.exception.BusinessException;
 import com.stars.backend.model.dto.interf.InterfAddRequest;
+import com.stars.backend.model.dto.interf.InterfInvokeRequest;
 import com.stars.backend.model.dto.interf.InterfQueryRequest;
 import com.stars.backend.model.dto.interf.InterfUpdateRequest;
 import com.stars.backend.model.enums.InterfStatusEnum;
 import com.stars.backend.service.InterfService;
 import com.stars.backend.service.UserInvokeInterfService;
 import com.stars.backend.service.UserService;
+import com.stars.clientsdk.client.StarsApiClient;
 import com.stars.common.model.entity.Interf;
 import com.stars.common.model.entity.User;
 import com.stars.common.model.entity.UserInvokeInterf;
@@ -22,11 +24,16 @@ import com.stars.common.model.vo.InterfVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -429,6 +436,61 @@ public class InterfController {
     }
 
     /**
+     * 调用接口
+     *
+     * @param interfInvokeRequest 包含接口调用请求参数的请求体
+     * @param request             请求对象
+     * @return 包含接口调用结果的响应对象
+     */
+    @PostMapping("/invoke")
+    public BaseResponse<Object> invokeInterf(@RequestBody InterfInvokeRequest interfInvokeRequest,
+                                             HttpServletRequest request) {
+        // 如果接口调用请求为空，则抛出异常
+        if (interfInvokeRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口调用请求为空");
+        }
+        // 如果接口调用请求中的ID小于等于零，则抛出异常
+        if (interfInvokeRequest.getId() <= 0L) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口调用请求中的ID小于等于零");
+        }
+        // 查询ID对应的接口
+        long id = interfInvokeRequest.getId();
+        Interf interf = this.interfService.getById(id);
+        // 如果查询的接口为空，表示接口不存在，则抛出异常
+        if (interf == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
+        }
+        // 如果接口为关闭状态，则抛出异常
+        if (interf.getInterfStatus() == InterfStatusEnum.OFFLINE.getValue()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口已关闭");
+        }
+        // 获取当前登录用户
+        User loginUser = this.userService.getLoginUser(request);
+        // 判断用户是否具有此接口的调用权限
+        QueryWrapper<UserInvokeInterf> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("userId", loginUser.getId());
+        queryWrapper.eq("interfId", interf.getId());
+        // 查询【用户调用接口】
+        long count = this.userInvokeInterfService.count(queryWrapper);
+        // 如果count等于零，表示【用户调用接口】不存在，即用户未开通调用此接口的权限，则抛出异常
+        if (count == 0) {
+            return ResultUtils.error(ErrorCode.NO_AUTH_ERROR, "暂无此接口的调用权限，请前往充值，自动开通权限");
+        }
+        // 获取用户的ak和sk
+        String accessKey = loginUser.getAccessKey();
+        String secretKey = loginUser.getSecretKey();
+        // 创建接口调用的客户端
+        StarsApiClient starsApiClient = new StarsApiClient(accessKey, secretKey);
+        // 开始调用接口
+        String userRequestParams = interfInvokeRequest.getUserRequestParams();
+        String url = interf.getInterfUrl();
+        String method = interf.getInterfRequestMethod();
+        String result = starsApiClient.onlineInvoke(userRequestParams, url, method);
+        // 返回一个成功的响应，响应体中携带result值
+        return ResultUtils.success(result);
+    }
+
+    /**
      * 获取所有接口的名称列表
      *
      * @return 包含接口名称列表的响应对象
@@ -468,5 +530,35 @@ public class InterfController {
         PageHelper<InterfVO> myInterf = this.interfService.getMyInterf(interfQueryRequest);
         // 返回一个成功的响应，响应体中携带myInterf信息
         return ResultUtils.success(myInterf);
+    }
+
+    /**
+     * 获取SDK开发工具包
+     *
+     * @param response HTTP响应对象
+     */
+    @GetMapping("/sdk")
+    public void getSdk(HttpServletResponse response) throws IOException {
+        // 获取需要下载的资源
+        org.springframework.core.io.Resource resource = new ClassPathResource("starsapi-client-sdk-0.0.1.jar");
+        // 获取资源的输入流
+        InputStream inputStream = resource.getInputStream();
+        // 设置响应体及响应头
+        response.setContentType("application/octet-stream");
+        response.setHeader("Content-Disposition", "attachment; filename=starsapi-client-sdk-0.0.1.jar");
+        // 将文件内容写入响应中
+        try (OutputStream out = response.getOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int length;
+            while ((length = inputStream.read(buffer)) > 0) {
+                out.write(buffer, 0, length);
+            }
+            out.flush();
+        } catch (IOException e) {
+            // 处理异常
+            e.printStackTrace();
+        } finally {
+            inputStream.close();
+        }
     }
 }

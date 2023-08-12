@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.stars.backend.mapper.InterfMapper">
+
+    <resultMap id="BaseResultMap" type="com.stars.common.model.entity.Interf">
+        <id property="id" column="id" jdbcType="BIGINT"/>
+        <result property="interfName" column="interfName" jdbcType="VARCHAR"/>
+        <result property="interfDescription" column="interfDescription" jdbcType="VARCHAR"/>
+        <result property="interfUrl" column="interfUrl" jdbcType="VARCHAR"/>
+        <result property="interfRequestMethod" column="interfRequestMethod" jdbcType="VARCHAR"/>
+        <result property="interfRequestParams" column="interfRequestParams" jdbcType="VARCHAR"/>
+        <result property="interfRequestHeader" column="interfRequestHeader" jdbcType="VARCHAR"/>
+        <result property="interfResponseHeader" column="interfResponseHeader" jdbcType="VARCHAR"/>
+        <result property="interfStatus" column="interfStatus" jdbcType="INTEGER"/>
+        <result property="interfUserId" column="interfUserId" jdbcType="BIGINT"/>
+        <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
+        <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
+        <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
+    </resultMap>
+
+    <resultMap id="interfMap" type="com.stars.common.model.vo.InterfVO">
+        <id column="id" property="id" jdbcType="BIGINT"/>
+        <result column="interfName" property="interfName" jdbcType="VARCHAR"/>
+        <result column="interfDescription" property="interfDescription" jdbcType="VARCHAR"/>
+        <result column="interfRequestMethod" property="interfRequestMethod" jdbcType="VARCHAR"/>
+        <result column="interfStatus" property="interfStatus" jdbcType="INTEGER"/>
+        <result column="createTime" property="createTime" javaType="java.util.Date"/>
+        <result column="totalInvokeNum" property="totalInvokeNum" jdbcType="BIGINT"/>
+        <result column="leftInvokeNum" property="leftInvokeNum" jdbcType="BIGINT"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,interfName,interfDescription,
+        interfUrl,interfRequestMethod,interfRequestParams,
+        interfRequestHeader,interfResponseHeader,interfStatus,
+        interfUserId,createTime,updateTime,
+        isDelete
+    </sql>
+
+    <select id="selectMyInterfByPage" resultMap="interfMap">
+    SELECT
+        i.id,
+        i.interfName,
+        i.interfDescription,
+        i.interfRequestMethod,
+        i.interfStatus,
+        i.createTime,
+        u.userId,
+        u.totalInvokeNum,
+        u.leftInvokeNum
+    FROM
+        interf i
+    INNER JOIN
+        user_invoke_interf u
+    ON
+        i.id = u.interfId
+        AND i.interfName LIKE #{interfDescription}
+        AND u.userId = #{userId}
+        AND i.isDelete = 0
+    ORDER BY
+        #{sortField} #{sortOrder}
+    LIMIT
+        #{start}, #{pageSize}
+    </select>
+
+    <select id="selectMyInterfCount" resultType="java.lang.Integer">
+    SELECT
+        count(*)
+    FROM
+        interf i
+    INNER JOIN
+        user_invoke_interf u
+    ON
+        i.id = u.interfId
+        AND u.userId = #{userId}
+        AND i.isDelete = 0
+    </select>
+</mapper>

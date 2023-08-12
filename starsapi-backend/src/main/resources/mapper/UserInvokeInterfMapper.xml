@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.stars.backend.mapper.UserInvokeInterfMapper">
+
+    <resultMap id="BaseResultMap" type="com.stars.common.model.entity.UserInvokeInterf">
+        <id property="id" column="id" jdbcType="BIGINT"/>
+        <result property="userId" column="userId" jdbcType="BIGINT"/>
+        <result property="interfId" column="interfId" jdbcType="BIGINT"/>
+        <result property="totalInvokeNum" column="totalInvokeNum" jdbcType="BIGINT"/>
+        <result property="leftInvokeNum" column="leftInvokeNum" jdbcType="BIGINT"/>
+        <result property="status" column="status" jdbcType="INTEGER"/>
+        <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
+        <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
+        <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,userId,interfId,
+        totalInvokeNum,leftInvokeNum,status,
+        createTime,updateTime,isDelete
+    </sql>
+
+    <select id="listTopInvokeInterf" resultType="com.stars.common.model.entity.UserInvokeInterf">
+    SELECT
+        interfId,
+        SUM(totalInvokeNum) AS totalInvokeNum
+    FROM
+        user_invoke_interf
+    GROUP BY
+        interfId
+    ORDER BY
+        totalInvokeNum DESC
+    LIMIT
+        #{limit}
+    </select>
+</mapper>

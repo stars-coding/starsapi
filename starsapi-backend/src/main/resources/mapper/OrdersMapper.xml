@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.stars.backend.mapper.OrdersMapper">
+
+    <resultMap id="BaseResultMap" type="com.stars.common.model.entity.Orders">
+        <id property="id" column="id" jdbcType="BIGINT"/>
+        <result property="userId" column="userId" jdbcType="BIGINT"/>
+        <result property="interfId" column="interfId" jdbcType="BIGINT"/>
+        <result property="rechargeTimes" column="rechargeTimes" jdbcType="BIGINT"/>
+        <result property="payType" column="payType" jdbcType="INTEGER"/>
+        <result property="status" column="status" jdbcType="INTEGER"/>
+        <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
+        <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
+        <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
+    </resultMap>
+
+    <resultMap id="MyOrdersMap" type="com.stars.common.model.vo.OrdersVO">
+        <id property="id" column="id" jdbcType="BIGINT"/>
+        <result property="interfName" column="interfName" jdbcType="VARCHAR"/>
+        <result property="interfDescription" column="interfDescription" jdbcType="VARCHAR"/>
+        <result property="rechargeTimes" column="rechargeTimes" jdbcType="BIGINT"/>
+        <result property="payType" column="payType" jdbcType="BIGINT"/>
+        <result property="status" column="status" jdbcType="INTEGER"/>
+        <result property="createTime" column="createTime" javaType="java.util.Date"/>
+        <result property="updateTime" column="updateTime" javaType="java.util.Date"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,userId,interfId,
+        rechargeTimes,payType,status,
+        createTime,updateTime,isDelete
+    </sql>
+
+    <select id="selectMyOrders" resultMap="MyOrdersMap">
+    SELECT
+        i.id,
+        i.interfName,
+        i.interfDescription,
+        o.payType,
+        o.rechargeTimes,
+        o.status,
+        o.createTime,
+        o.updateTime
+    FROM
+        orders o
+    INNER JOIN
+        interf i
+    ON
+        o.interfId = i.id
+    WHERE
+        o.userId = #{userId}
+        AND o.isDelete = 0
+    ORDER BY
+        o.createTime DESC
+    LIMIT
+        #{start}, #{pageSize}
+    </select>
+</mapper>

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.stars.backend.annotation.AuthCheck;
 import com.stars.backend.common.*;
 import com.stars.backend.constant.RedisConstants;
 import com.stars.backend.exception.BusinessException;
@@ -14,6 +15,7 @@ import com.stars.backend.model.dto.user.UserLoginRequest;
 import com.stars.backend.model.dto.user.UserQueryRequest;
 import com.stars.backend.model.dto.user.UserRegisterRequest;
 import com.stars.backend.model.dto.user.UserUpdateRequest;
+import com.stars.backend.service.CardService;
 import com.stars.backend.service.UserService;
 import com.stars.common.model.entity.User;
 import com.stars.common.model.vo.UserVO;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +45,9 @@ public class UserController {
 
     @Resource
     private UserService userService;
+    
+    @Resource
+    private CardService cardService;
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
@@ -295,6 +301,21 @@ public class UserController {
         // 删除缓存
         String key = CACHE_USERINFO_KEY + id;
         this.stringRedisTemplate.delete(key);
+        // 返回一个成功的响应，响应体中携带result值
+        return ResultUtils.success(result);
+    }
+
+    /**
+     * 添加卡号
+     *
+     * @return 是否成功添加卡号
+     * @throws IOException 输入输出异常
+     */
+    @PostMapping("/card/add")
+    @AuthCheck(mustRole = "admin")
+    public BaseResponse<Boolean> addCard() throws IOException {
+        // 随机生成卡号
+        boolean result = this.cardService.generateCard();
         // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }

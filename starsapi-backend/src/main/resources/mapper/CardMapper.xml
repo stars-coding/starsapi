@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.stars.backend.mapper.CardMapper">
+
+    <resultMap id="BaseResultMap" type="com.stars.common.model.entity.Card">
+        <id property="id" column="id" jdbcType="BIGINT"/>
+        <result property="cardNumber" column="cardNumber" jdbcType="VARCHAR"/>
+        <result property="cardPassword" column="cardPassword" jdbcType="VARCHAR"/>
+        <result property="cardStatus" column="cardStatus" jdbcType="INTEGER"/>
+        <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
+        <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
+        <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,cardNumber,cardPassword,
+        cardStatus,createTime,updateTime,
+        isDelete
+    </sql>
+</mapper>

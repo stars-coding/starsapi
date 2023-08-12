@@ -10,7 +10,7 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * 主类(项目启动入口)
+ * starsapi-backend启动入口
  *
  * @author stars
  */
@@ -18,10 +18,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @MapperScan("com.stars.backend.mapper")
 @EnableScheduling
 @EnableAspectJAutoProxy(proxyTargetClass = true, exposeProxy = true)
-public class MainApplication {
+public class StarsapiBackendApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(MainApplication.class, args);
+        SpringApplication.run(StarsapiBackendApplication.class, args);
     }
 
     @Bean
