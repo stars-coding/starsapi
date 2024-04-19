@@ -21,6 +21,10 @@
 
 ## 项目展示
 
+- 系统架构
+
+![系统架构](https://github.com/stars-coding/starsapi/blob/master/image/系统架构.png)
+
 - 平台主页
 
 ![平台主页](https://github.com/stars-coding/starsapi/blob/master/image/平台主页.png)
@@ -52,10 +56,6 @@
 - 接口分析
 
 ![接口分析](https://github.com/stars-coding/starsapi/blob/master/image/接口分析.png)
-
-- 系统架构
-
-![系统架构](https://github.com/stars-coding/starsapi/blob/master/image/系统架构.png)
 
 ## 技术堆栈
 
@@ -93,20 +93,29 @@
 ## 功能模块
 
 管理员(管理)
-- 创建接口
+- 浏览接口
 - 查看接口
-- 发布接口
+- 调用接口
+- 接口充值
+- 订单汇总
+- 删除订单
+- 创建接口
 - 更新接口
+- 发布接口
 - 下线接口
 - 删除接口
 - 调用分析
 - 发布卡密
+- 操作密钥
+- 分享接口
+- 下载SDK
+- 复制依赖
 
 体验者(用户)
 - 浏览接口
 - 查看接口
-- 接口充值
 - 调用接口
+- 接口充值
 - 订单汇总
 - 删除订单
 - 操作密钥
