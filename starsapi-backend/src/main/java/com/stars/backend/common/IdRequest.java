@@ -1,5 +1,6 @@
 package com.stars.backend.common;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -13,6 +14,7 @@ import java.io.Serializable;
  */
 @Data
 @NoArgsConstructor
+@AllArgsConstructor
 public class IdRequest implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -21,14 +23,4 @@ public class IdRequest implements Serializable {
      * 唯一标识符
      */
     private Long id;
-
-    /**
-     * 构造函数
-     * 创建一个新的IdRequest对象，并设置唯一标识符。
-     *
-     * @param id 唯一标识符
-     */
-    public IdRequest(Long id) {
-        this.id = id;
-    }
 }

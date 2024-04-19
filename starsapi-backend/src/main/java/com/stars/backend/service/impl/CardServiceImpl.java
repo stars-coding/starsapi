@@ -40,8 +40,10 @@ public class CardServiceImpl extends ServiceImpl<CardMapper, Card> implements Ca
         if (save) {
             BufferedWriter bufferedWriter = null;
             try {
-                // todo 本地环境
-                bufferedWriter = new BufferedWriter(new FileWriter("D:\\JetBrainsWebStormUltimate2020Workspace\\starsapi-frontend\\public\\cardpassword.txt", true));
+                // todo 开发环境
+                bufferedWriter = new BufferedWriter(
+                        new FileWriter(
+                                "D:\\ABD\\Desktop\\Projects\\starsapi-GIT\\starsapi\\starsapi-frontend\\public\\cardpassword.txt", true));
                 // todo 线上环境
 //                bufferedWriter = new BufferedWriter(new FileWriter("//root//services//starsapi-frontend//cardpassword.txt", true));
                 bufferedWriter.newLine();

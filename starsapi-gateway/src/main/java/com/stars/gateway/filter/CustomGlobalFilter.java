@@ -41,25 +41,20 @@ import java.util.List;
 @Component
 public class CustomGlobalFilter implements GlobalFilter, Ordered {
 
-    @DubboReference
-    private InnerUserService innerUserService;
-
-    @DubboReference
-    private InnerInterfService innerInterfService;
-
-    @DubboReference
-    private InnerUserInvokeInterfService innerUserInvokeInterfService;
-
     // IP黑名单
     private static final List<String> IP_BLACK_LIST = Arrays.asList(new String[]{"192.168.123.111"});
-
     // IP白名单
     private static final List<String> IP_WHITE_LIST = Arrays.asList(new String[]{""});
-
     // todo 开发环境-本地地址-模拟接口地址
     private static final String INTERFACE_HOST = "http://localhost:28004";
     // todo 线上环境-服务器公网地址-模拟接口地址
-//    private static final String INTERFACE_HOST = "";
+//    private static final String INTERFACE_HOST = "http://localhost:28004";
+    @DubboReference
+    private InnerUserService innerUserService;
+    @DubboReference
+    private InnerInterfService innerInterfService;
+    @DubboReference
+    private InnerUserInvokeInterfService innerUserInvokeInterfService;
 
     /**
      * 对请求进行过滤处理
@@ -75,7 +70,7 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         // 获取请求中的数据
         String id = request.getId();
-        String path = this.INTERFACE_HOST + request.getPath().value();
+        String path = CustomGlobalFilter.INTERFACE_HOST + request.getPath().value();
         String method = request.getMethod().toString();
         MultiValueMap<String, String> queryParams = request.getQueryParams();
         String sourceAddress = request.getLocalAddress().getHostString();
@@ -85,12 +80,12 @@ public class CustomGlobalFilter implements GlobalFilter, Ordered {
         this.log.info("请求方法" + method);
         this.log.info("请求参数" + queryParams);
         this.log.info("请求来源地址" + sourceAddress);
-        this.log.info("请求来源地址" + remoteAddress);
+        this.log.info("请求目的地址" + remoteAddress);
         // 2、访问控制-黑名单
         // 获取响应对象，已经对response做了增强，装饰者模式
         ServerHttpResponse response = exchange.getResponse();
         // 如果源地址在IP黑名单中，则直接返回结束
-        if (this.IP_BLACK_LIST.contains(sourceAddress)) {
+        if (CustomGlobalFilter.IP_BLACK_LIST.contains(sourceAddress)) {
             return this.handleNoAuth(response);
         }
         // 3、用户鉴权-鉴定ak和sk

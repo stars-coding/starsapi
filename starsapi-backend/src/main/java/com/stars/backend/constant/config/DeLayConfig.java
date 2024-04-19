@@ -29,7 +29,7 @@ public class DeLayConfig {
     @Bean
     public DirectExchange directExchange() {
         return ExchangeBuilder
-                .directExchange(DIRECT_EXCHANGE_NAME_ORDER)
+                .directExchange(DeLayConfig.DIRECT_EXCHANGE_NAME_ORDER)
                 .durable(true)
                 .delayed()
                 .build();
@@ -42,7 +42,7 @@ public class DeLayConfig {
      */
     @Bean
     public Queue queue() {
-        return new Queue(QUEUE_NAME_ORDER);
+        return new Queue(DeLayConfig.QUEUE_NAME_ORDER);
     }
 
     /**
@@ -52,6 +52,6 @@ public class DeLayConfig {
      */
     @Bean
     public Binding bindingDirctExchangeAndQueue() {
-        return BindingBuilder.bind(queue()).to(directExchange()).with(DIRECT_EXCHANGE_ROUT_KEY_ORDER);
+        return BindingBuilder.bind(queue()).to(directExchange()).with(DeLayConfig.DIRECT_EXCHANGE_ROUT_KEY_ORDER);
     }
 }

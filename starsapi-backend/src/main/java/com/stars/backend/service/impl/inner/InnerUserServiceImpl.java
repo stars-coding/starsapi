@@ -33,7 +33,7 @@ public class InnerUserServiceImpl implements InnerUserService {
     public User getInvokeUser(String accessKey) {
         // 如果ak为空或空白，则抛出异常
         if (StringUtils.isAnyBlank(accessKey)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "ak为空或空白");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "获取失败，AK为空或空白");
         }
         // 构建查询条件
         LambdaQueryWrapper<User> lqw = new LambdaQueryWrapper<>();

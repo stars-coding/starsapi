@@ -24,7 +24,7 @@ public class StarsApiClient {
     // todo 开发环境-本地地址-网关地址
     private static final String GATEWAY_HOST = "http://localhost:28002";
     // todo 线上环境-服务器公网地址-网关地址
-//    private static final String GATEWAY_HOST = "";
+//    private static final String GATEWAY_HOST = "http://123.207.1.38:28002";
 
     /**
      * 公钥
@@ -57,7 +57,7 @@ public class StarsApiClient {
     public String getNameByGet(String name) {
         HashMap<String, Object> paramMap = new HashMap<>();
         paramMap.put("name", name);
-        String result = HttpUtil.get(com.stars.clientsdk.client.StarsApiClient.GATEWAY_HOST + "/api/name/", paramMap);
+        String result = HttpUtil.get(StarsApiClient.GATEWAY_HOST + "/api/name/", paramMap);
         return result;
     }
 
@@ -70,7 +70,7 @@ public class StarsApiClient {
     public String getNameByPost(String name) {
         HashMap<String, Object> paramMap = new HashMap<>();
         paramMap.put("name", name);
-        String result = HttpUtil.post(com.stars.clientsdk.client.StarsApiClient.GATEWAY_HOST + "/api/name/", paramMap);
+        String result = HttpUtil.post(StarsApiClient.GATEWAY_HOST + "/api/name/", paramMap);
         return result;
     }
 
@@ -84,7 +84,7 @@ public class StarsApiClient {
         // 将用户转换为JSON参数
         String json = JSONUtil.toJsonStr(user);
         // 构建POST请求的URL
-        String baseUrl = com.stars.clientsdk.client.StarsApiClient.GATEWAY_HOST + "/name/user";
+        String baseUrl = StarsApiClient.GATEWAY_HOST + "/name/user";
         HttpResponse httpResponse = HttpRequest.post(baseUrl)
                 // 设置请求头部信息-自定义头部MAP
                 .addHeaders(this.getHeadMap(json, true))
@@ -108,7 +108,7 @@ public class StarsApiClient {
     public String onlineInvoke(String parameters, String url, String method) {
         if ("POST".equals(method)) {
             // 构建POST请求的URL
-            String baseUrl = com.stars.clientsdk.client.StarsApiClient.GATEWAY_HOST + url;
+            String baseUrl = StarsApiClient.GATEWAY_HOST + url;
             // 发起POST请求
             HttpResponse httpResponse = HttpRequest.post(baseUrl)
                     // 设置请求头部信息-自定义头部MAP
@@ -124,7 +124,7 @@ public class StarsApiClient {
             // 解析请求参数
             HashMap<String, String> stringObjectHashMap = this.handleParameters(parameters);
             // 构建GET请求的URL
-            String baseUrl = com.stars.clientsdk.client.StarsApiClient.GATEWAY_HOST + url + "?" + this.getEncodedParams(stringObjectHashMap);
+            String baseUrl = StarsApiClient.GATEWAY_HOST + url + "?" + this.getEncodedParams(stringObjectHashMap);
             // 发起GET请求
             HttpRequest httpRequest = HttpRequest.get(baseUrl)
                     // 设置请求头部信息-自定义头部MAP

@@ -27,7 +27,7 @@ public class RedisConstants {
     /**
      * 缓存用户信息的键前缀
      */
-    public static final String CACHE_USERINFO_KEY = "cache:userInfo:";
+    public static final String CACHE_USER_KEY = "cache:user:";
 
     /**
      * 锁定添加订单的键前缀
@@ -47,5 +47,5 @@ public class RedisConstants {
     /**
      * 用户信息缓存的超时时间(秒)
      */
-    public static final Long USER_INFO_TIME_OUT = 30L;
+    public static final Long USER_TIME_OUT = 30L;
 }

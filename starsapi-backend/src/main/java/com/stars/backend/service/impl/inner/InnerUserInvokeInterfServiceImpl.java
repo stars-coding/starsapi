@@ -52,11 +52,11 @@ public class InnerUserInvokeInterfServiceImpl implements InnerUserInvokeInterfSe
         UserInvokeInterf userInvokeInterf = this.userInvokeInterfService.getOne(lqw);
         // 如果【用户调用接口】为空，表示不存在，则抛出异常
         if (userInvokeInterf == null) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "用户调用接口不存在");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "校验失败，用户调用接口不存在");
         }
         // 如果剩余调用次数小于等于零，则抛出异常
         if (userInvokeInterf.getLeftInvokeNum() <= 0) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "剩余调用次数小于等于零");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "校验失败，剩余调用次数小于等于零");
         }
         return true;
     }

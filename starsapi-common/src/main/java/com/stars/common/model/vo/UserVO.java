@@ -43,7 +43,7 @@ public class UserVO {
     private String accessKey;
 
     /**
-     * 用户秘钥
+     * 用户密钥
      */
     private String secretKey;
 

@@ -1,8 +1,8 @@
 package com.stars.backend.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.google.gson.Gson;
 import com.stars.backend.common.*;
+import com.stars.backend.constant.RedisConstants;
 import com.stars.backend.exception.BusinessException;
 import com.stars.backend.model.dto.orders.OrdersDeleteRequest;
 import com.stars.backend.model.dto.orders.OrdersQueryRequest;
@@ -15,7 +15,7 @@ import com.stars.common.model.entity.Orders;
 import com.stars.common.model.entity.User;
 import com.stars.common.model.vo.OrdersVO;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.PostConstruct;
@@ -30,8 +30,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static com.stars.backend.constant.RedisConstants.CACHE_MY_ORDERS_KEY;
-import static com.stars.backend.constant.RedisConstants.LOCK_ADD_ORDER_KEY;
 
 /**
  * 订单控制器
@@ -60,7 +58,7 @@ public class OrdersController {
     @Resource
     private QueueMessageService queueMessageService;
     @Resource
-    private StringRedisTemplate stringRedisTemplate;
+    private RedisTemplate redisTemplate;
 
     /**
      * 初始化
@@ -68,33 +66,31 @@ public class OrdersController {
      */
     @PostConstruct
     private void init() {
-        ORDER_EXECUTOR.submit(new OrdersHandler());
+        OrdersController.ORDER_EXECUTOR.submit(new OrdersHandler());
     }
 
     /**
      * 添加订单
      * 异步下单操作
      *
-     * @param interfName         接口名称
-     * @param payAccount         支付账户
-     * @param num                充值次数
-     * @param httpServletRequest 请求对象
+     * @param interfName 接口名称
+     * @param payAccount 支付账户
+     * @param num        充值次数
+     * @param request    请求对象
      * @return 包含操作结果的响应对象
      */
     @PostMapping("/add")
     public BaseResponse<Boolean> addOrders(@RequestParam String interfName,
                                            @RequestParam String payAccount,
                                            @RequestParam long num,
-                                           HttpServletRequest httpServletRequest) {
-        // 获取当前登录用户
-        User loginUser = this.userService.getLoginUser(httpServletRequest);
+                                           HttpServletRequest request) {
         // 查询接口
         QueryWrapper<Interf> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("interfName", interfName);
         Interf interf = this.interfService.getOne(queryWrapper);
         // 如果接口为空，表示不存在，则抛出异常
         if (interf == null) {
-            return ResultUtils.error(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
+            return ResultUtils.error(ErrorCode.NOT_FOUND_ERROR, "下单失败，接口不存在");
         }
         // 查询用户
         QueryWrapper<User> userQueryWrapper = new QueryWrapper<>();
@@ -102,11 +98,11 @@ public class OrdersController {
         User user = this.userService.getOne(userQueryWrapper);
         // 如果用户为空，表示不存在，则抛出异常
         if (user == null) {
-            return ResultUtils.error(ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+            return ResultUtils.error(ErrorCode.NOT_FOUND_ERROR, "下单失败，用户不存在");
         }
         // 如果次数大于二百，则抛出异常
         if (num > 200L) {
-            return ResultUtils.error(ErrorCode.PARAMS_ERROR, "次数大于二百");
+            return ResultUtils.error(ErrorCode.PARAMS_ERROR, "下单失败，充值次数大于二百");
         }
         // 创建订单
         Orders orders = new Orders();
@@ -115,14 +111,6 @@ public class OrdersController {
         orders.setRechargeTimes(num);
         // 将订单添加至队列，异步处理
         boolean result = this.ordersTasks.add(orders);
-        // todo 这里是否需要添加Redis缓存
-        long userId = user.getId();
-        String key = CACHE_MY_ORDERS_KEY + userId;
-        // 将订单信息转换为JSON格式
-        Gson gson = new Gson();
-        String value = gson.toJson(orders);
-        this.stringRedisTemplate.opsForValue().set(key, value);
-        // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }
 
@@ -138,14 +126,13 @@ public class OrdersController {
                                                                  HttpServletRequest request) {
         // 如果订单查询请求为空，则抛出异常
         if (ordersQueryRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "订单查询请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "获取失败，订单查询请求为空");
         }
         // 获取当前登录用户的ID
         long id = this.userService.getLoginUser(request).getId();
         ordersQueryRequest.setUserId(id);
         // 获取分页订单列表
         PageHelper<OrdersVO> myOrdersList = this.ordersService.getMyOrders(ordersQueryRequest);
-        // 返回一个成功的响应，响应体中携带myOrdersList信息
         return ResultUtils.success(myOrdersList);
     }
 
@@ -153,19 +140,19 @@ public class OrdersController {
      * 删除订单和支付结果
      *
      * @param ordersDeleteRequest 包含订单ID和状态的请求对象
-     * @param httpServletRequest  请求对象
+     * @param request             请求对象
      * @return 删除操作结果的响应对象
      */
     @PostMapping("/delete")
     public BaseResponse<Boolean> deleteOrdersAndPayResult(@RequestBody OrdersDeleteRequest ordersDeleteRequest,
-                                                          HttpServletRequest httpServletRequest) {
+                                                          HttpServletRequest request) {
         // 如果订单删除请求为空，则抛出异常
         if (ordersDeleteRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "订单删除请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "删除失败，订单删除请求为空");
         }
         // 如果订单删除请求中的ID小于等于零，则抛出异常
         if (ordersDeleteRequest.getId() <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "订单删除请求中的ID小于等于零");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "删除失败，订单删除请求中的ID小于等于零");
         }
         // 获取日期
         String dateString = ordersDeleteRequest.getCreateTime().toString();
@@ -177,18 +164,17 @@ public class OrdersController {
             date = inputFormat.parse(dateString);
         } catch (ParseException e) {
             e.printStackTrace();
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "日期格式解析错误");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "删除失败，日期格式解析错误");
         }
         SimpleDateFormat outputFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         String createTime = outputFormat.format(date);
         // 获取当前登录用户
-        User loginUser = this.userService.getLoginUser(httpServletRequest);
+        User loginUser = this.userService.getLoginUser(request);
         long userId = loginUser.getId();
         long ordersId = ordersDeleteRequest.getId();
         int status = ordersDeleteRequest.getStatus();
         // 删除订单和支付结果
         boolean result = this.ordersService.deleteOrdersAndPayResult(ordersId, userId, status, createTime);
-        // 返回一个成功的响应，响应体中携带myOrdersList信息
         return ResultUtils.success(result);
     }
 
@@ -227,9 +213,9 @@ public class OrdersController {
          * @param num      充值次数
          */
         private void handleOrders(long userId, long interfId, long num) {
-            // 构建缓存的键
-            String key = LOCK_ADD_ORDER_KEY + userId;
-            SimpleRedisLock lock = new SimpleRedisLock(stringRedisTemplate, key);
+            // todo 构建缓存的键
+            String key = RedisConstants.LOCK_ADD_ORDER_KEY + userId;
+            SimpleRedisLock lock = new SimpleRedisLock(redisTemplate, key);
             // 尝试获取锁
             boolean isLock = lock.tryLock(1200L);
             if (!isLock) {

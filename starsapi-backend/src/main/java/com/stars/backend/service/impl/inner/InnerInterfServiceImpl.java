@@ -34,7 +34,7 @@ public class InnerInterfServiceImpl implements InnerInterfService {
     public Interf getInterf(String interfUrl, String interfRequestMethod) {
         // 如果URL和请求方法为空或空白，则抛出异常
         if (StringUtils.isAnyBlank(interfUrl, interfRequestMethod)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "URL和请求方法为空或空白");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "获取失败，URL和请求方法为空或空白");
         }
         // 构建查询条件
         LambdaQueryWrapper<Interf> lqw = new LambdaQueryWrapper<>();

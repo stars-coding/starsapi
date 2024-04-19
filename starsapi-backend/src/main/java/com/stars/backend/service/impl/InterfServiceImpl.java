@@ -39,17 +39,17 @@ public class InterfServiceImpl extends ServiceImpl<InterfMapper, Interf> impleme
     public void validInterf(Interf interf, boolean add) {
         // todo 先处理添加和更新的公共逻辑（接口合法性、唯一性、可用性），再分别处理添加和更新的特有逻辑。
         if (interf == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证失败，接口为空");
         }
         String name = interf.getInterfName();
         if (StringUtils.isBlank(name)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口名称为空或接口名称为空白字符");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证失败，接口名称为空或接口名称为空白字符");
         }
         if (StringUtils.isAnyBlank(name)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口名称中包含空白字符");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证失败，接口名称中包含空白字符");
         }
         if (name.length() > 50) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口名称过长");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "验证失败，接口名称过长");
         }
     }
 

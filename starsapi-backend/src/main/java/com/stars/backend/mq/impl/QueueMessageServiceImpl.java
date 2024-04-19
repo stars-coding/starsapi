@@ -26,6 +26,7 @@ public class QueueMessageServiceImpl implements QueueMessageService {
      * @param msg         消息对象
      * @param xdelay      延迟时间（毫秒）
      */
+    @Override
     public void delayedSend(String exchangeKey, String routingKey, Object msg, int xdelay) {
         this.rabbitTemplate.convertAndSend(exchangeKey, routingKey, msg, message -> {
             message.getMessageProperties().setDelay(xdelay);

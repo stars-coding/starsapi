@@ -7,17 +7,20 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stars.backend.annotation.AuthCheck;
 import com.stars.backend.common.*;
+import com.stars.backend.constant.RedisConstants;
+import com.stars.backend.constant.UserConstant;
 import com.stars.backend.exception.BusinessException;
 import com.stars.backend.model.dto.userinvokeinterf.UserInvokeInterfAddRequest;
 import com.stars.backend.model.dto.userinvokeinterf.UserInvokeInterfQueryRequest;
 import com.stars.backend.model.dto.userinvokeinterf.UserInvokeInterfUpdateRequest;
+import com.stars.backend.model.enums.OrdersStatusEnum;
 import com.stars.backend.service.*;
 import com.stars.common.model.entity.*;
 import com.stars.common.model.vo.SelfInterfDataVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,10 +33,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-
-import static com.stars.backend.constant.RedisConstants.CACHE_MY_ORDERS_KEY;
-import static com.stars.backend.constant.RedisConstants.LOCK_PAY_ORDER_KEY;
-import static com.stars.backend.constant.UserConstant.USER_LOGIN_STATE;
 
 /**
  * 用户调用接口控制器
@@ -64,7 +63,7 @@ public class UserInvokeInterfController {
     private CardPayResultService cardPayResultService;
 
     @Resource
-    private StringRedisTemplate stringRedisTemplate;
+    private RedisTemplate redisTemplate;
 
     /**
      * 支付接口
@@ -92,8 +91,8 @@ public class UserInvokeInterfController {
         User loginUser = this.userService.getLoginUser(request);
         // 构建缓存的键
         long id = loginUser.getId();
-        String key = LOCK_PAY_ORDER_KEY + id;
-        SimpleRedisLock lock = new SimpleRedisLock(this.stringRedisTemplate, key);
+        String key = RedisConstants.LOCK_PAY_ORDER_KEY + id;
+        SimpleRedisLock lock = new SimpleRedisLock(this.redisTemplate, key);
         // 尝试获取锁
         boolean isLock = lock.tryLock(2400L);
         if (!isLock) {
@@ -103,7 +102,7 @@ public class UserInvokeInterfController {
                 lock.unlock();
                 e.printStackTrace();
             }
-            return ResultUtils.error(ErrorCode.NOT_FOUND_ERROR, "用户调用接口不存在");
+            return ResultUtils.error(ErrorCode.NOT_FOUND_ERROR, "支付失败，用户调用接口不存在");
         }
         // 查询接口
         LambdaQueryWrapper<Interf> lqw = new LambdaQueryWrapper<>();
@@ -112,7 +111,7 @@ public class UserInvokeInterfController {
         // 如果接口为空，表示接口不存在，则抛出异常
         if (interf == null) {
             lock.unlock();
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "支付失败，接口不存在");
         }
         // 查询用户
         LambdaQueryWrapper<User> lqw1 = new LambdaQueryWrapper<>();
@@ -121,7 +120,7 @@ public class UserInvokeInterfController {
         // 如果用户为空，表示用户不存在，则抛出异常
         if (user == null) {
             lock.unlock();
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "支付失败，用户不存在");
         }
         // 查询卡
         cardNumber = SecureUtil.md5(cardNumber);
@@ -133,14 +132,14 @@ public class UserInvokeInterfController {
         // 如果卡为空，表示不存在，则抛出异常
         if (card == null) {
             lock.unlock();
-            return ResultUtils.error(ErrorCode.NOT_FOUND_ERROR, "卡不存在");
+            return ResultUtils.error(ErrorCode.NOT_FOUND_ERROR, "支付失败，卡不存在");
         }
         // 卡正确，删除卡
         boolean remove = this.cardService.remove(cardQueryWrapper);
         // 如果删除失败，表示卡已失效，则抛出异常
         if (!remove) {
             lock.unlock();
-            return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "卡已失效");
+            return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "支付失败，卡已失效");
         }
         // 充值完，增加用户剩余调用次数
         long userId = user.getId();
@@ -165,12 +164,12 @@ public class UserInvokeInterfController {
         QueryWrapper<Orders> ordersQueryWrapper = new QueryWrapper<>();
         ordersQueryWrapper.eq("userId", userId);
         ordersQueryWrapper.eq("interfId", interfId);
-        ordersQueryWrapper.eq("status", 0);
+        ordersQueryWrapper.eq("status", OrdersStatusEnum.WAIT.getValue());
         Orders orders = this.ordersService.getOne(ordersQueryWrapper);
         // 如果订单为空，表示订单不存在，则抛出异常
         if (orders == null) {
             lock.unlock();
-            return ResultUtils.error(ErrorCode.NOT_FOUND_ERROR, "订单不存在");
+            return ResultUtils.error(ErrorCode.NOT_FOUND_ERROR, "支付失败，订单不存在");
         }
         // 保存支付结算
         CardPayResult payResult = new CardPayResult();
@@ -200,18 +199,13 @@ public class UserInvokeInterfController {
         ordersUpdateWrapper.eq("userId", userId);
         ordersUpdateWrapper.eq("interfId", interfId);
         ordersUpdateWrapper.eq("createTime", formattedDate);
-        ordersUpdateWrapper.setSql("status = 2");
+        ordersUpdateWrapper.setSql("status = " + OrdersStatusEnum.SUCCESS.getValue());
         boolean result = this.ordersService.update(ordersUpdateWrapper);
-        // todo 更新成功是否需要删除缓存
-        if (result) {
-            String key1 = CACHE_MY_ORDERS_KEY + userId;
-            this.stringRedisTemplate.delete(key1);
-            lock.unlock();
-            // 返回一个成功的响应，响应体中携带result值
-            return ResultUtils.success(result);
-        }
         lock.unlock();
-        return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "系统错误");
+        if (result) {
+            return ResultUtils.success(true);
+        }
+        return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "支付失败，系统错误");
     }
 
     /**
@@ -223,13 +217,13 @@ public class UserInvokeInterfController {
      * @return 包含新用户调用接口ID的响应对象
      */
     @PostMapping("/add")
-    @AuthCheck(mustRole = "admin")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Long> addUserInvokeInterf(
             @RequestBody UserInvokeInterfAddRequest userInvokeInterfAddRequest,
             HttpServletRequest request) {
         // 如果用户调用接口添加请求为空，则抛出异常
         if (userInvokeInterfAddRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户调用接口添加请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "添加失败，用户调用接口添加请求为空");
         }
         // 创建用户调用接口
         UserInvokeInterf userInvokeInterf = new UserInvokeInterf();
@@ -244,11 +238,10 @@ public class UserInvokeInterfController {
         boolean result = this.userInvokeInterfService.save(userInvokeInterf);
         // 如果保存【用户调用接口】失败，则抛出异常
         if (!result) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "保存用户调用接口失败");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "添加失败，保存用户调用接口失败");
         }
         // 获取新创建的【用户调用接口】ID
         long newUserInvokeInterfId = userInvokeInterf.getId();
-        // 返回一个成功的响应，响应体中携带newUserInvokeInterfId值
         return ResultUtils.success(newUserInvokeInterfId);
     }
 
@@ -261,16 +254,16 @@ public class UserInvokeInterfController {
      * @return 包含删除操作结果的响应对象
      */
     @PostMapping("/delete")
-    @AuthCheck(mustRole = "admin")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> deleteUserInvokeInterf(@RequestBody DeleteRequest deleteRequest,
                                                         HttpServletRequest request) {
         // 如果删除请求为空，则抛出异常
         if (deleteRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "删除请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "删除成功，删除请求为空");
         }
         // 如果删除请求中的ID小于等于零，则抛出异常
         if (deleteRequest.getId() <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "删除请求中的ID小于等于零");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "删除成功，删除请求中的ID小于等于零");
         }
         // 获取当前登录用户
         User user = this.userService.getLoginUser(request);
@@ -279,15 +272,14 @@ public class UserInvokeInterfController {
         UserInvokeInterf oldUserInvokeInterf = this.userInvokeInterfService.getById(id);
         // 如果【用户调用接口】为空，表示【用户调用接口】不存在，则抛出异常
         if (oldUserInvokeInterf == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户调用接口不存在");
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "删除成功，用户调用接口不存在");
         }
         // 检查权限，只有接口创建者或管理员才有权限
         if (!oldUserInvokeInterf.getUserId().equals(user.getId()) && !this.userService.isAdmin(request)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "暂无权限删除用户调用接口");
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "删除成功，暂无权限删除用户调用接口");
         }
         // 删除【用户调用接口】
         boolean result = this.userInvokeInterfService.removeById(id);
-        // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }
 
@@ -300,16 +292,17 @@ public class UserInvokeInterfController {
      * @return 包含更新操作结果的响应对象
      */
     @PostMapping("/update")
-    @AuthCheck(mustRole = "admin")
-    public BaseResponse<Boolean> updateUserInvokeInterf(@RequestBody UserInvokeInterfUpdateRequest userInvokeInterfUpdateRequest,
-                                                        HttpServletRequest request) {
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> updateUserInvokeInterf(
+            @RequestBody UserInvokeInterfUpdateRequest userInvokeInterfUpdateRequest,
+            HttpServletRequest request) {
         // 如果用户调用接口更新请求为空，则抛出异常
         if (userInvokeInterfUpdateRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户调用接口更新请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "更新成功，用户调用接口更新请求为空");
         }
         // 如果用户调用接口更新请求中的ID小于等于零，则抛出异常
         if (userInvokeInterfUpdateRequest.getId() <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户调用接口更新请求中的ID小于等于零");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "更新成功，用户调用接口更新请求中的ID小于等于零");
         }
         // 创建【用户调用接口】
         UserInvokeInterf userInvokeInterf = new UserInvokeInterf();
@@ -324,15 +317,14 @@ public class UserInvokeInterfController {
         UserInvokeInterf oldUserInvokeInterf = this.userInvokeInterfService.getById(id);
         // 如果【用户调用接口】为空，表示【用户调用接口】不存在，则抛出异常
         if (oldUserInvokeInterf == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户调用接口不存在");
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "更新成功，用户调用接口不存在");
         }
         // 检查权限，只有接口创建者或管理员才有权限
         if (!oldUserInvokeInterf.getUserId().equals(user.getId()) && !this.userService.isAdmin(request)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "暂无权限更新用户调用接口");
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "更新成功，暂无权限更新用户调用接口");
         }
         // 更新【用户调用接口】
         boolean result = this.userInvokeInterfService.updateById(userInvokeInterf);
-        // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }
 
@@ -343,7 +335,7 @@ public class UserInvokeInterfController {
      * @return 包含用户接口信息的响应对象
      */
     @GetMapping("/get")
-    @AuthCheck(mustRole = "admin")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<UserInvokeInterf> getUserInvokeInterfById(long id) {
         // 如果ID小于等于零，则抛出异常
         if (id <= 0L) {
@@ -360,7 +352,7 @@ public class UserInvokeInterfController {
      * @param userInvokeInterfQueryRequest 查询条件
      * @return 包含用户接口信息列表的响应对象
      */
-    @AuthCheck(mustRole = "admin")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     @GetMapping("/list")
     public BaseResponse<List<UserInvokeInterf>> listUserInvokeInterf(UserInvokeInterfQueryRequest userInvokeInterfQueryRequest) {
         // 创建【用户调用接口】
@@ -385,7 +377,7 @@ public class UserInvokeInterfController {
      * @return 包含用户接口信息分页数据的响应对象
      */
     @GetMapping("/list/page")
-    @AuthCheck(mustRole = "admin")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Page<UserInvokeInterf>> listUserInvokeInterfByPage(UserInvokeInterfQueryRequest userInvokeInterfQueryRequest,
                                                                            HttpServletRequest request) {
         // 如果用户调用接口查询请求为空，则抛出异常
@@ -416,7 +408,7 @@ public class UserInvokeInterfController {
      */
     @GetMapping("/selfInterfData")
     public BaseResponse<List<SelfInterfDataVO>> selfInterfData(HttpServletRequest request) {
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
+        Object userObj = request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
         User currentUser = (User) userObj;
         long id = currentUser.getId();
         LambdaQueryWrapper<UserInvokeInterf> lqw = new LambdaQueryWrapper<>();

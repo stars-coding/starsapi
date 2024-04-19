@@ -1,12 +1,11 @@
 package com.stars.backend.controller;
 
-import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.bean.copier.CopyOptions;
-import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stars.backend.annotation.AuthCheck;
 import com.stars.backend.common.*;
+import com.stars.backend.constant.CommonConstant;
+import com.stars.backend.constant.UserConstant;
 import com.stars.backend.exception.BusinessException;
 import com.stars.backend.model.dto.interf.InterfAddRequest;
 import com.stars.backend.model.dto.interf.InterfInvokeRequest;
@@ -25,7 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
@@ -37,11 +35,6 @@ import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
-import static com.stars.backend.constant.CommonConstant.SORT_ORDER_ASC;
-import static com.stars.backend.constant.RedisConstants.CACHE_INTERF_KEY;
-import static com.stars.backend.constant.RedisConstants.LOCK_INTERF_BY_BREAK;
 
 /**
  * 接口控制器
@@ -62,9 +55,6 @@ public class InterfController {
     @Resource
     private UserService userService;
 
-    @Resource
-    private StringRedisTemplate stringRedisTemplate;
-
     /**
      * 添加接口
      *
@@ -77,7 +67,7 @@ public class InterfController {
                                         HttpServletRequest request) {
         // 如果接口添加请求为空，则抛出异常
         if (interfAddRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口添加请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "添加失败，接口添加请求为空");
         }
         // 创建接口
         Interf interf = new Interf();
@@ -94,9 +84,8 @@ public class InterfController {
         boolean result = this.interfService.save(interf);
         // 如果接口添加失败，则抛出异常
         if (!result) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口添加失败");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "添加失败");
         }
-        // todo 有点问题，待研究
         // 添加【用户调用接口】
         long id = interf.getId();
         result = this.userInvokeInterfService.addInvokeCount(id, userId);
@@ -104,10 +93,8 @@ public class InterfController {
         if (!result) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "用户调用接口添加失败");
         }
-        // todo 这里是否需要添加Redis缓存
         // 获取新接口的ID
         long newInterfId = interf.getId();
-        // 返回一个成功的响应，响应体中携带新接口的ID值
         return ResultUtils.success(newInterfId);
     }
 
@@ -124,11 +111,11 @@ public class InterfController {
                                               HttpServletRequest request) {
         // 如果删除请求为空，则抛出异常
         if (deleteRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "删除请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "删除失败，删除请求为空");
         }
         // 如果删除请求中的ID小于或等于零，则抛出异常
         if (deleteRequest.getId() <= 0L) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "删除请求中的ID小于等于零");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "删除失败，删除请求中的ID小于等于零");
         }
         // 获取当前登录用户
         User loginUser = this.userService.getLoginUser(request);
@@ -137,11 +124,11 @@ public class InterfController {
         Interf oldInterf = this.interfService.getById(id);
         // 如果查询的接口为空，表示接口不存在，则抛出异常
         if (oldInterf == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "查询的接口不存在");
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "删除失败，接口不存在");
         }
         // 检查权限，只有接口创建者或管理员才可以删除接口
         if (!oldInterf.getInterfUserId().equals(loginUser.getId()) && !this.userService.isAdmin(request)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "暂无权限删除此接口");
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "删除失败，暂无权限删除此接口");
         }
         // 删除接口
         boolean result = this.interfService.removeById(id);
@@ -149,22 +136,21 @@ public class InterfController {
         if (!result) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口删除失败");
         }
-        // 创建【用户调用接口】
-        UserInvokeInterf userInvokeInterf = new UserInvokeInterf();
-        userInvokeInterf.setInterfId(id);
-        // todo 有点问题，待研究
-        // 删除【用户调用接口】
-        result = this.userInvokeInterfService.removeById(userInvokeInterf);
-        // 如果【用户调用接口】删除失败，则抛出异常
-        if (!result) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "用户调用接口删除失败");
-        }
-        // todo 这里是否需要删除Redis缓存
-        // 删除缓存
-        String key = CACHE_INTERF_KEY + id;
-        this.stringRedisTemplate.delete(key);
-        // 返回一个成功的响应，响应体中携带result值
-        return ResultUtils.success(result);
+        // 查询【用户调用接口】
+        QueryWrapper<UserInvokeInterf> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("interfId", id);
+        List<UserInvokeInterf> userInvokeInterfList = this.userInvokeInterfService.list(queryWrapper);
+        // 使用forEach方法遍历列表，并删除每个【用户调用接口】
+        userInvokeInterfList.forEach(userInvokeInterf -> {
+            Long userInvokeInterfId = userInvokeInterf.getId();
+            // 删除【用户调用接口】
+            boolean aResult = this.userInvokeInterfService.removeById(userInvokeInterfId);
+            // 如果【用户调用接口】删除失败，则抛出异常
+            if (!aResult) {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "删除失败，用户调用接口删除失败");
+            }
+        });
+        return ResultUtils.success(true);
     }
 
     /**
@@ -180,11 +166,11 @@ public class InterfController {
                                               HttpServletRequest request) {
         // 如果接口更新请求为空，则抛出异常
         if (interfUpdateRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口更新请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "更新失败，接口更新请求为空");
         }
         // 如果接口更新请求中的ID小于等于零，则抛出异常
         if (interfUpdateRequest.getId() <= 0L) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口更新请求中的ID小于等于零");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "更新失败，接口更新请求中的ID小于等于零");
         }
         // 创建接口
         Interf interf = new Interf();
@@ -199,19 +185,14 @@ public class InterfController {
         Interf oldInterf = this.interfService.getById(id);
         // 如果查询的接口为空，表示接口不存在，则抛出异常
         if (oldInterf == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "查询的接口不存在");
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "更新失败，接口不存在");
         }
         // 检查权限，只有接口创建者或管理员才可以更新接口
         if (!oldInterf.getInterfUserId().equals(user.getId()) && !this.userService.isAdmin(request)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "暂无权限更新此接口");
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "更新失败，暂无权限更新此接口");
         }
         // 更新接口
         boolean result = this.interfService.updateById(interf);
-        // todo 这里是否需要删除Redis缓存
-        // 删除缓存
-        String key = CACHE_INTERF_KEY + id;
-        this.stringRedisTemplate.delete(key);
-        // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }
 
@@ -225,65 +206,10 @@ public class InterfController {
     public BaseResponse<Interf> getInterfById(long id) {
         // 如果ID小于等于零，则抛出异常
         if (id <= 0L) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "ID小于等于零");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "获取失败，ID小于等于零");
         }
-        // 尝试从缓存中获取接口
-        String key = CACHE_INTERF_KEY + id;
-        Map<Object, Object> entries = this.stringRedisTemplate.opsForHash().entries(key);
-        String o = (String) entries.get("");
-        // 如果缓存存在且不为空，则封装返回
-        if (CollUtil.isNotEmpty(entries) && !"".equals(o)) {
-            // 从缓存中封装接口
-            Interf interf = BeanUtil.fillBeanWithMap(entries, new Interf(), false);
-            // 返回一个成功的响应，响应体中携带interf信息
-            return ResultUtils.success(interf);
-        }
-        // 如果缓存为空，表示缓存穿透，则抛出异常
-        if ("".equals(o)) {
-            return ResultUtils.error(ErrorCode.NOT_FOUND_ERROR, "接口未找到");
-        }
-        // 使用互斥锁解决缓存击穿
-        SimpleRedisLock lock = new SimpleRedisLock(this.stringRedisTemplate, LOCK_INTERF_BY_BREAK + id);
-        Interf interf = null;
-        try {
-            // 尝试获取互斥锁，最多等待1200毫秒
-            boolean isLock = lock.tryLock(1200);
-            // 如果获取锁失败，等待50毫秒后再次尝试
-            if (!isLock) {
-                Thread.sleep(50);
-                // 继续调用
-                return this.getInterfById(id);
-            }
-            // 缓存不存在，查询接口
-            interf = this.interfService.getById(id);
-            // 如果不存在查询的接口，表示缓存穿透，则抛出异常
-            if (BeanUtil.isEmpty(interf)) {
-                // 缓存空对象，解决缓存穿透
-                this.stringRedisTemplate.opsForHash().put(key, "", "");
-                this.stringRedisTemplate.expire(key, 30L, TimeUnit.MINUTES);
-                return ResultUtils.error(ErrorCode.NOT_FOUND_ERROR, "接口未找到");
-            }
-            // 存在查询的接口，将接口封装至MAP对象放到缓存中
-            Map<String, Object> map = BeanUtil.beanToMap(interf, new HashMap<>(),
-                    CopyOptions.create().setIgnoreNullValue(false)
-                            .setFieldValueEditor((keys, values) -> {
-                                if (values == null) {
-                                    values = null;
-                                } else {
-                                    values = values.toString();
-                                }
-                                return values;
-                            }));
-            // 将MAP对象放进Redis中，并设置超时时间
-            this.stringRedisTemplate.opsForHash().putAll(key, map);
-            this.stringRedisTemplate.expire(key, 30L, TimeUnit.MINUTES);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        } finally {
-            // 释放互斥锁
-            lock.unlock();
-        }
-        // 返回一个成功的响应，响应体中携带interf信息
+        // 获取接口
+        Interf interf = this.interfService.getById(id);
         return ResultUtils.success(interf);
     }
 
@@ -294,8 +220,8 @@ public class InterfController {
      * @param interfQueryRequest 包含接口查询条件的请求体
      * @return 包含接口列表的响应对象
      */
-    @AuthCheck(mustRole = "admin")
     @GetMapping("/list")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<List<Interf>> listInterf(InterfQueryRequest interfQueryRequest,
                                                  HttpServletRequest request) {
         // 创建接口
@@ -308,7 +234,6 @@ public class InterfController {
         // 查询接口
         QueryWrapper<Interf> queryWrapper = new QueryWrapper<>(interfQuery);
         List<Interf> interfList = this.interfService.list(queryWrapper);
-        // 返回一个成功的响应，响应体中携带interfList信息
         return ResultUtils.success(interfList);
     }
 
@@ -324,7 +249,7 @@ public class InterfController {
                                                        HttpServletRequest request) {
         // 如果接口查询请求为空，则抛出异常
         if (interfQueryRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口查询请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "获取失败，接口查询请求为空");
         }
         // 创建接口
         Interf interfQuery = new Interf();
@@ -340,14 +265,14 @@ public class InterfController {
         interfQuery.setInterfDescription(null);
         // 如果分页尺寸大于50，则抛出异常
         if (size > 50L) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "分页尺寸过大");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "获取失败，分页尺寸过大");
         }
         // 查询接口
         QueryWrapper<Interf> queryWrapper = new QueryWrapper<>(interfQuery);
         queryWrapper.like(StringUtils.isNotBlank(interfDescription), "interfDescription", interfDescription);
-        queryWrapper.orderBy(StringUtils.isNotBlank(sortField), sortOrder.equals(SORT_ORDER_ASC), sortField);
+        queryWrapper.orderBy(StringUtils.isNotBlank(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC), sortField);
+        // 获取接口分页
         Page<Interf> interfPage = this.interfService.page(new Page<>(current, size), queryWrapper);
-        // 返回一个成功的响应，响应体中携带interfPage信息
         return ResultUtils.success(interfPage);
     }
 
@@ -360,23 +285,23 @@ public class InterfController {
      * @return 包含发布结果的响应对象
      */
     @PostMapping("/online")
-    @AuthCheck(mustRole = "admin")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> onlineInterf(@RequestBody IdRequest idRequest,
                                               HttpServletRequest request) {
         // 如果ID请求为空，则抛出异常
         if (idRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "ID请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "发布失败，ID请求为空");
         }
         // 如果ID请求中的ID小于等于零，则抛出异常
         if (idRequest.getId() <= 0L) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "ID请求中的ID小于等于零");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "发布失败，ID请求中的ID小于等于零");
         }
         // 查询ID对应的接口
         long id = idRequest.getId();
         Interf interf = this.interfService.getById(id);
         // 如果查询的接口为空，表示接口不存在，则抛出异常
         if (interf == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "发布失败，接口不存在");
         }
         // 创建接口
         Interf updateInterf = new Interf();
@@ -385,11 +310,6 @@ public class InterfController {
         updateInterf.setInterfStatus(InterfStatusEnum.ONLINE.getValue());
         // 更新接口
         boolean result = this.interfService.updateById(updateInterf);
-        // todo 这里是否需要删除Redis缓存
-        // 删除缓存
-        String key = CACHE_INTERF_KEY + id;
-        this.stringRedisTemplate.delete(key);
-        // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }
 
@@ -402,23 +322,23 @@ public class InterfController {
      * @return 包含下线结果的响应对象
      */
     @PostMapping("/offline")
-    @AuthCheck(mustRole = "admin")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> offlineInterf(@RequestBody IdRequest idRequest,
                                                HttpServletRequest request) {
         // 如果ID请求为空，则抛出异常
         if (idRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "ID请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "下线失败，ID请求为空");
         }
         // 如果ID请求中的ID小于等于零，则抛出异常
         if (idRequest.getId() <= 0L) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "ID请求中的ID小于等于零");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "下线失败，ID请求中的ID小于等于零");
         }
         // 查询ID对应的接口
         long id = idRequest.getId();
         Interf interf = this.interfService.getById(id);
         // 如果查询的接口为空，表示接口不存在，则抛出异常
         if (interf == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "下线失败，接口不存在");
         }
         // 创建接口
         Interf updateInterf = new Interf();
@@ -427,11 +347,6 @@ public class InterfController {
         updateInterf.setInterfStatus(InterfStatusEnum.OFFLINE.getValue());
         // 更新接口
         boolean result = this.interfService.updateById(updateInterf);
-        // todo 这里是否需要删除Redis缓存
-        // 删除缓存
-        String key = CACHE_INTERF_KEY + id;
-        this.stringRedisTemplate.delete(key);
-        // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }
 
@@ -447,22 +362,22 @@ public class InterfController {
                                              HttpServletRequest request) {
         // 如果接口调用请求为空，则抛出异常
         if (interfInvokeRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口调用请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用失败，接口调用请求为空");
         }
         // 如果接口调用请求中的ID小于等于零，则抛出异常
         if (interfInvokeRequest.getId() <= 0L) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口调用请求中的ID小于等于零");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用失败，接口调用请求中的ID小于等于零");
         }
         // 查询ID对应的接口
         long id = interfInvokeRequest.getId();
         Interf interf = this.interfService.getById(id);
         // 如果查询的接口为空，表示接口不存在，则抛出异常
         if (interf == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "接口不存在");
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "调用失败，接口不存在");
         }
         // 如果接口为关闭状态，则抛出异常
         if (interf.getInterfStatus() == InterfStatusEnum.OFFLINE.getValue()) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "接口已关闭");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "调用失败，接口已关闭");
         }
         // 获取当前登录用户
         User loginUser = this.userService.getLoginUser(request);
@@ -474,7 +389,7 @@ public class InterfController {
         long count = this.userInvokeInterfService.count(queryWrapper);
         // 如果count等于零，表示【用户调用接口】不存在，即用户未开通调用此接口的权限，则抛出异常
         if (count == 0) {
-            return ResultUtils.error(ErrorCode.NO_AUTH_ERROR, "暂无此接口的调用权限，请前往充值，自动开通权限");
+            return ResultUtils.error(ErrorCode.NO_AUTH_ERROR, "调用失败，暂无此接口的调用权限，请前往充值，自动开通权限");
         }
         // 获取用户的ak和sk
         String accessKey = loginUser.getAccessKey();
@@ -486,7 +401,6 @@ public class InterfController {
         String url = interf.getInterfUrl();
         String method = interf.getInterfRequestMethod();
         String result = starsApiClient.onlineInvoke(userRequestParams, url, method);
-        // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }
 
@@ -507,7 +421,6 @@ public class InterfController {
             String name = interf.getInterfName();
             interfNameMap.put(name, name);
         }
-        // 返回一个成功的响应，响应体中携带interfNameMap信息
         return ResultUtils.success(interfNameMap);
     }
 
@@ -528,7 +441,6 @@ public class InterfController {
         interfQueryRequest.setInterfUserId(id);
         // 查询当前用户拥有的接口
         PageHelper<InterfVO> myInterf = this.interfService.getMyInterf(interfQueryRequest);
-        // 返回一个成功的响应，响应体中携带myInterf信息
         return ResultUtils.success(myInterf);
     }
 

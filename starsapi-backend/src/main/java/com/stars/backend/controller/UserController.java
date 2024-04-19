@@ -3,13 +3,12 @@ package com.stars.backend.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.plugins.pagination.PageDTO;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.stars.backend.annotation.AuthCheck;
-import com.stars.backend.common.*;
-import com.stars.backend.constant.RedisConstants;
+import com.stars.backend.common.BaseResponse;
+import com.stars.backend.common.ErrorCode;
+import com.stars.backend.common.IdRequest;
+import com.stars.backend.common.ResultUtils;
+import com.stars.backend.constant.UserConstant;
 import com.stars.backend.exception.BusinessException;
 import com.stars.backend.model.dto.user.UserLoginRequest;
 import com.stars.backend.model.dto.user.UserQueryRequest;
@@ -21,18 +20,15 @@ import com.stars.common.model.entity.User;
 import com.stars.common.model.vo.UserVO;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
-import java.util.Date;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.stars.backend.constant.RedisConstants.CACHE_USERINFO_KEY;
 
 /**
  * 用户控制器
@@ -45,12 +41,12 @@ public class UserController {
 
     @Resource
     private UserService userService;
-    
+
     @Resource
     private CardService cardService;
 
     @Resource
-    private StringRedisTemplate stringRedisTemplate;
+    private RedisTemplate redisTemplate;
 
     /**
      * 用户注册
@@ -62,7 +58,7 @@ public class UserController {
     public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
         // 如果用户注册请求为空，则抛出异常
         if (userRegisterRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户注册请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "注册失败，用户注册请求为空");
         }
         // 获取用户注册请求中的参数
         String userAccount = userRegisterRequest.getUserAccount();
@@ -70,10 +66,9 @@ public class UserController {
         String checkPassword = userRegisterRequest.getCheckPassword();
         // 如果用户注册请求中的参数为空或空白，则抛出异常
         if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户注册请求中的参数为空或空白");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "注册失败，用户注册请求中的参数为空或空白");
         }
         long result = this.userService.userRegister(userAccount, userPassword, checkPassword);
-        // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }
 
@@ -88,17 +83,16 @@ public class UserController {
     public BaseResponse<User> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request) {
         // 如果用户登录请求为空，则抛出异常
         if (userLoginRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户登录请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "登录失败，用户登录请求为空");
         }
         // 获取用户登录请求中的参数
         String userAccount = userLoginRequest.getUserAccount();
         String userPassword = userLoginRequest.getUserPassword();
         // 如果用户登录请求中的参数为空或空白，则抛出异常
         if (StringUtils.isAnyBlank(userAccount, userPassword)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户登录请求中的参数为空或空白");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "登录失败，用户登录请求中的参数为空或空白");
         }
         User user = this.userService.userLogin(userAccount, userPassword, request);
-        // 返回一个成功的响应，响应体中携带user信息
         return ResultUtils.success(user);
     }
 
@@ -112,10 +106,9 @@ public class UserController {
     public BaseResponse<Boolean> userLogout(HttpServletRequest request) {
         // 如果请求为空，则抛出异常
         if (request == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "注销失败，请求为空");
         }
         boolean result = this.userService.userLogout(request);
-        // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }
 
@@ -131,11 +124,11 @@ public class UserController {
                                             HttpServletRequest request) {
         // 如果用户更新请求为空，则抛出异常
         if (userUpdateRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户更新请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "更新失败，用户更新请求为空");
         }
         // 如果用户更新请求中的ID小于等于零，则抛出异常
         if (userUpdateRequest.getId() <= 0L) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户更新请求中的ID小于等于零");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "更新失败，用户更新请求中的ID小于等于零");
         }
         // 创建用户
         User user = new User();
@@ -143,11 +136,6 @@ public class UserController {
         BeanUtils.copyProperties(userUpdateRequest, user);
         // 将用户更新至数据库中
         boolean result = this.userService.updateById(user);
-        // todo 这里是否需要删除Redis缓存
-        // 删除缓存
-        String key = CACHE_USERINFO_KEY + user.getId();
-        this.stringRedisTemplate.delete(key);
-        // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }
 
@@ -162,11 +150,10 @@ public class UserController {
     public BaseResponse<User> getUserById(long id, HttpServletRequest request) {
         // 如果ID小于等于零，则抛出异常
         if (id <= 0L) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "ID小于等于零");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "获取失败，ID小于等于零");
         }
         // 获取用户
         User user = this.userService.getById(id);
-        // 返回一个成功的响应，响应体中携带user信息
         return ResultUtils.success(user);
     }
 
@@ -195,7 +182,6 @@ public class UserController {
             BeanUtils.copyProperties(user, userVO);
             return userVO;
         }).collect(Collectors.toList());
-        // 返回一个成功的响应，响应体中携带userVOList信息
         return ResultUtils.success(userVOList);
     }
 
@@ -210,7 +196,7 @@ public class UserController {
     public BaseResponse<Page<UserVO>> listUserByPage(UserQueryRequest userQueryRequest, HttpServletRequest request) {
         // 如果用户查询请求为空，则抛出异常
         if (userQueryRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户查询请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "查询失败，用户查询请求为空");
         }
         // 创建用户
         User userQuery = new User();
@@ -221,7 +207,7 @@ public class UserController {
         long size = userQueryRequest.getPageSize();
         // 如果分页尺寸大于10，则抛出异常
         if (size > 10L) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "分页尺寸过大");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "查询失败，分页尺寸过大");
         }
         // 查询用户
         QueryWrapper<User> queryWrapper = new QueryWrapper<>(userQuery);
@@ -234,7 +220,6 @@ public class UserController {
             return userVO;
         }).collect(Collectors.toList());
         userVOPage.setRecords(userVOList);
-        // 返回一个成功的响应，响应体中携带userVOPage信息
         return ResultUtils.success(userVOPage);
     }
 
@@ -247,16 +232,9 @@ public class UserController {
      */
     @GetMapping("/get/vo")
     public BaseResponse<UserVO> getUserVOById(long id, HttpServletRequest request) {
-        // 构建缓存的键
-        String key = CACHE_USERINFO_KEY + id;
-        // 从缓存中获取用户
-        String userInfo = this.stringRedisTemplate.opsForValue().get(key);
-        // 如果缓存中存在对应的用户，则反序列化
-        if (userInfo != null && userInfo.length() != 0) {
-            // 将User反序列化为UserVO，并返回
-            Gson gson = new GsonBuilder().registerTypeAdapter(Date.class, new FormatUtils()).create();
-            UserVO userVO1 = (UserVO) gson.fromJson(userInfo, UserVO.class);
-            return ResultUtils.success(userVO1);
+        // 如果ID小于等于零，则抛出异常
+        if (id <= 0L) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "获取失败，ID小于等于零");
         }
         // 获取响应对象
         BaseResponse<User> response = getUserById(id, request);
@@ -264,15 +242,6 @@ public class UserController {
         User user = (User) response.getData();
         // 根据用户获取用户视图
         UserVO userVO = this.userService.getUserVO(user);
-        // 将用户视图反序列化为JSON，并放入缓存
-        try {
-            String userInfoJSON = new ObjectMapper().writeValueAsString(userVO);
-            this.stringRedisTemplate.opsForValue().set(key, userInfoJSON);
-            this.stringRedisTemplate.expire(key, RedisConstants.USER_INFO_TIME_OUT, TimeUnit.MINUTES);
-        } catch (JsonProcessingException e) {
-            e.printStackTrace();
-        }
-        // 返回一个成功的响应，响应体中携带userVO信息
         return ResultUtils.success(userVO);
     }
 
@@ -288,20 +257,15 @@ public class UserController {
     public BaseResponse<Boolean> updateSecretKey(@RequestBody IdRequest idRequest, HttpServletRequest request) {
         // 如果ID请求为空，则抛出异常
         if (idRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "ID请求为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "更新失败，ID请求为空");
         }
         // 如果ID请求中的ID小于等于零，则抛出异常
         if (idRequest.getId() <= 0L) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "ID请求中的ID小于等于零");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "更新失败，ID请求中的ID小于等于零");
         }
         // 查询ID对应的用户
         long id = idRequest.getId();
         boolean result = this.userService.updateSecretKey(id);
-        // todo 这里是否需要删除Redis缓存
-        // 删除缓存
-        String key = CACHE_USERINFO_KEY + id;
-        this.stringRedisTemplate.delete(key);
-        // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }
 
@@ -312,11 +276,10 @@ public class UserController {
      * @throws IOException 输入输出异常
      */
     @PostMapping("/card/add")
-    @AuthCheck(mustRole = "admin")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> addCard() throws IOException {
         // 随机生成卡号
         boolean result = this.cardService.generateCard();
-        // 返回一个成功的响应，响应体中携带result值
         return ResultUtils.success(result);
     }
 }

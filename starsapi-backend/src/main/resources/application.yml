@@ -8,10 +8,12 @@ spring:
 #  port: 28000
 #  servlet:
 #    context-path: /api
-#    # cookie 30 天过期
-#  #    session:
-#  #      cookie:
-#  #        max-age: 2592000
+##    # cookie 30 天过期
+##    session:
+##      cookie:
+##        max-age: 2592000
+##        # 线上环境-腾讯云服务器-外网地址
+##        domain: 123.207.1.38
 #
 ## Spring 配置
 #spring:
@@ -54,8 +56,9 @@ spring:
 #  rabbitmq:
 #    # 开发环境-腾讯云服务器-RabbitMQ地址
 #    host: 123.207.1.38
+#    port: 5672
 #    virtual-host: /
-#    username:
+#    username: root
 #    password:
 #
 ## MybatisPlus 配置
@@ -77,25 +80,27 @@ spring:
 #      # 是否启动QoS
 #      enable: true
 #      # 启动QoS绑定的端口
-#      port: 33010
+#      port: 28010
 #      # 是否允许远程访问
 #      foregin:
 #        ip: true
 #  protocol:
 #    name: dubbo
-#    port: 22010
+#    port: 28011
 #  registry:
 #    id: nacos-registry
 #    # 开发环境-本地地址-Nacos地址
 #    address: nacos://localhost:8848
+#    # 线上环境-腾讯云服务器内网地址-Nacos地址
+##    address: nacos://localhost:8848
 #
 ## 对象存储 配置
 ## todo 需替换配置
 #aliyun:
 #  oss:
-#    endpoint:
-#    urlPrefix:
+#    endpoint: oss-cn-guangzhou.aliyuncs.com
+#    urlPrefix: http://stars.oss-cn-guangzhou.aliyuncs.com
 #    accessKeyId:
 #    accessKeySecret:
-#    bucketName:
+#    bucketName: stars
 #    fileHost: files

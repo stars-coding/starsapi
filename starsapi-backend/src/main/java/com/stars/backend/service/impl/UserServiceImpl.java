@@ -5,6 +5,7 @@ import cn.hutool.crypto.digest.DigestUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stars.backend.common.ErrorCode;
+import com.stars.backend.constant.UserConstant;
 import com.stars.backend.exception.BusinessException;
 import com.stars.backend.mapper.UserMapper;
 import com.stars.backend.service.UserService;
@@ -20,7 +21,6 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 
 import static com.stars.backend.constant.UserConstant.ADMIN_ROLE;
-import static com.stars.backend.constant.UserConstant.USER_LOGIN_STATE;
 
 /**
  * 用户服务实现
@@ -49,23 +49,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
         if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空或空白");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "注册失败，参数为空或空白");
         }
         if (userAccount.length() < 4) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户账号过短");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "注册失败，用户账号过短");
         }
-        if (userPassword.length() < 8 || checkPassword.length() < 8) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户密码过短");
+        if (userPassword.length() < 8) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "注册失败，用户密码过短");
         }
         if (!userPassword.equals(checkPassword)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次输入的密码不一致");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "注册失败，两次输入的密码不一致");
         }
         synchronized (userAccount.intern()) {
             QueryWrapper<User> queryWrapper = new QueryWrapper();
             queryWrapper.eq("userAccount", userAccount);
             long count = this.userMapper.selectCount(queryWrapper);
             if (count > 0L) {
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号重复");
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "注册失败，账号重复");
             }
             // MD5方式加密密码
             String encryptPassword = DigestUtils.md5DigestAsHex((this.SALT + userPassword).getBytes());
@@ -99,13 +99,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public User userLogin(String userAccount, String userPassword, HttpServletRequest request) {
         if (StringUtils.isAnyBlank(userAccount, userPassword)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "登录失败，参数为空");
         }
         if (userAccount.length() < 4) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号错误");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "登录失败，用户账号过短");
         }
         if (userPassword.length() < 8) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码错误");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "登录失败，用户密码过短");
         }
         String encryptPassword = DigestUtils.md5DigestAsHex((SALT + userPassword).getBytes());
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
@@ -114,9 +114,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         User user = this.userMapper.selectOne(queryWrapper);
         if (user == null) {
             this.log.info("user login failed, userAccount cannot match userPassword");
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或密码错误");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "登录失败，用户不存在或密码错误");
         }
-        request.getSession().setAttribute(USER_LOGIN_STATE, user);
+        // 记录用户的登录态
+        request.getSession().setAttribute(UserConstant.USER_LOGIN_STATE, user);
         return user;
     }
 
@@ -128,9 +129,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public boolean userLogout(HttpServletRequest request) {
-        if (request.getSession().getAttribute(USER_LOGIN_STATE) == null)
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
-        request.getSession().removeAttribute(USER_LOGIN_STATE);
+        if (request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE) == null)
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "注销失败，未登录");
+        request.getSession().removeAttribute(UserConstant.USER_LOGIN_STATE);
         return true;
     }
 
@@ -142,7 +143,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public User getLoginUser(HttpServletRequest request) {
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
+        Object userObj = request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
         User currentUser = (User) userObj;
         if (currentUser == null || currentUser.getId() == null)
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
@@ -183,7 +184,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         String secretKey = DigestUtil.md5Hex(SALT + user.getUserAccount() + RandomUtil.randomNumbers(8));
         user.setSecretKey(secretKey);
         user.setAccessKey(accessKey);
-        return updateById(user);
+        return this.updateById(user);
     }
 
     /**
@@ -195,7 +196,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public boolean isAdmin(HttpServletRequest request) {
         // 仅管理员可查询
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
+        Object userObj = request.getSession().getAttribute(UserConstant.USER_LOGIN_STATE);
         User user = (User) userObj;
         return user != null && ADMIN_ROLE.equals(user.getUserRole());
     }

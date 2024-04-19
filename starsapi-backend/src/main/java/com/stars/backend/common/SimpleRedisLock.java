@@ -1,6 +1,6 @@
 package com.stars.backend.common;
 
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -27,7 +27,7 @@ public class SimpleRedisLock implements ILock {
     /**
      * Redis面板
      */
-    private StringRedisTemplate stringRedisTemplate;
+    private RedisTemplate redisTemplate;
 
     /**
      * 锁的名称
@@ -38,11 +38,11 @@ public class SimpleRedisLock implements ILock {
      * 构造函数
      * 创建Redis乐观锁。
      *
-     * @param stringRedisTemplate Redis面板
-     * @param name                锁的名称
+     * @param redisTemplate Redis面板
+     * @param name          锁的名称
      */
-    public SimpleRedisLock(StringRedisTemplate stringRedisTemplate, String name) {
-        this.stringRedisTemplate = stringRedisTemplate;
+    public SimpleRedisLock(RedisTemplate redisTemplate, String name) {
+        this.redisTemplate = redisTemplate;
         this.name = name;
     }
 
@@ -58,7 +58,7 @@ public class SimpleRedisLock implements ILock {
         // 获取线程ID标识，作为锁的标识，确保每个线程只能释放自己持有的锁
         String threadId = this.ID_PREFIX + Thread.currentThread().getId();
         // 开始获取锁
-        Boolean success = this.stringRedisTemplate.opsForValue()
+        Boolean success = this.redisTemplate.opsForValue()
                 .setIfAbsent(this.KEY_PREFIX + this.name, threadId, timeoutSec, TimeUnit.SECONDS);
         return success;
     }
@@ -72,10 +72,10 @@ public class SimpleRedisLock implements ILock {
         // 获取线程ID标识，作为锁的标识，确保每个线程只能释放自己持有的锁
         String threadId = this.ID_PREFIX + Thread.currentThread().getId();
         // 获取锁的ID
-        String id = this.stringRedisTemplate.opsForValue().get(this.KEY_PREFIX + this.name);
+        String id = (String) this.redisTemplate.opsForValue().get(this.KEY_PREFIX + this.name);
         // 如果两个ID相同，则释放锁
         if (threadId.equals(id)) {
-            this.stringRedisTemplate.delete(this.KEY_PREFIX + this.name);
+            this.redisTemplate.delete(this.KEY_PREFIX + this.name);
         }
     }
 }

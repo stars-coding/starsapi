@@ -22,7 +22,7 @@ create table if not exists user
     userAccount  varchar(255)                           not null comment '用户账号',
     userPassword varchar(511)                           not null comment '用户密码(加密)',
     accessKey    varchar(511)                           not null comment '用户公钥',
-    secretKey    varchar(511)                           not null comment '用户秘钥',
+    secretKey    varchar(511)                           not null comment '用户密钥',
     createTime   datetime     default CURRENT_TIMESTAMP not null comment '创建时间',
     updateTime   datetime     default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
     isDelete     tinyint      default 0                 not null comment '是否删除(0-未删, 1-已删)',

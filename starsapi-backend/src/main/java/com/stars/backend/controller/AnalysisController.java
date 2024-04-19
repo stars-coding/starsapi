@@ -6,6 +6,7 @@ import com.stars.backend.annotation.AuthCheck;
 import com.stars.backend.common.BaseResponse;
 import com.stars.backend.common.ErrorCode;
 import com.stars.backend.common.ResultUtils;
+import com.stars.backend.constant.UserConstant;
 import com.stars.backend.exception.BusinessException;
 import com.stars.backend.mapper.UserInvokeInterfMapper;
 import com.stars.backend.service.InterfService;
@@ -45,7 +46,7 @@ public class AnalysisController {
      * @return 包含分析结果的响应对象
      */
     @GetMapping("/top/interf/invoke")
-    @AuthCheck(mustRole = "admin")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<List<AnalysisInterfVO>> listTopInvokeInterf() {
         // 获取调用次数最多的用户接口列表
         List<UserInvokeInterf> userInvokeInterfList = this.userInvokeInterfMapper.listTopInvokeInterf(3);
@@ -59,7 +60,7 @@ public class AnalysisController {
         List<Interf> list = this.interfService.list(queryWrapper);
         // 如果接口列表为空，则抛出异常
         if (CollectionUtils.isEmpty(list)) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "接口列表为空");
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "获取失败，接口列表为空");
         }
         // 构建分析接口视图
         List<AnalysisInterfVO> collect = list.stream().map(interf -> {
@@ -68,7 +69,6 @@ public class AnalysisController {
             analysisInterfVO.setTotalInvokeNum(interfIdObjMap.get(interf.getId()).get(0).getTotalInvokeNum());
             return analysisInterfVO;
         }).collect(Collectors.toList());
-        // 返回一个成功的响应，响应体中携带collect信息
         return ResultUtils.success(collect);
     }
 }

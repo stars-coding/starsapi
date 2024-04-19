@@ -2,7 +2,7 @@ package com.stars.backend.controller;
 
 import com.stars.backend.common.BaseResponse;
 import com.stars.backend.common.ResultUtils;
-import com.stars.backend.manager.CosManager;
+import com.stars.backend.manager.OssManager;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -34,7 +34,7 @@ public class FileController {
     private static final String FILE_DELIMITER = ",";
 
     @Resource
-    private CosManager cosManager;
+    private OssManager ossManager;
 
     /**
      * 单文件上传
@@ -52,11 +52,10 @@ public class FileController {
         String uuid = RandomStringUtils.randomAlphanumeric(8);
         // 构建新的文件名
         String fileName = uuid + "-" + file.getOriginalFilename();
-        // 调用CosManager上传文件到OSS
-        String imageUrl = this.cosManager.uploadFile2OSS(file.getInputStream(), fileName);
+        // 调用OssManager上传文件到OSS
+        String imageUrl = this.ossManager.uploadFile2OSS(file.getInputStream(), fileName);
         // 存储上传后的文件URL
         result.put("url", imageUrl);
-        // 返回一个成功的响应，响应体中携带result信息
         return ResultUtils.success(result);
     }
 
@@ -82,8 +81,8 @@ public class FileController {
                 String uuid = RandomStringUtils.randomAlphanumeric(8);
                 // 构建新的文件名
                 String fileName = uuid + "-" + file.getOriginalFilename();
-                // 调用CosManager上传文件到OSS
-                String imageUrl = this.cosManager.uploadFile2OSS(file.getInputStream(), fileName);
+                // 调用OssManager上传文件到OSS
+                String imageUrl = this.ossManager.uploadFile2OSS(file.getInputStream(), fileName);
                 // 存储上传后的文件URL
                 urls.add(imageUrl);
                 // 存储上传后的文件名
@@ -96,7 +95,6 @@ public class FileController {
             result.put("urls", StringUtils.join(urls, this.FILE_DELIMITER));
             result.put("fileNames", StringUtils.join(fileNames, this.FILE_DELIMITER));
             result.put("originalFilenames", StringUtils.join(originalFilenames, this.FILE_DELIMITER));
-            // 返回一个成功的响应，响应体中携带result信息
             return ResultUtils.success(result);
         } catch (Exception e) {
             throw new Exception("文件上传失败");
