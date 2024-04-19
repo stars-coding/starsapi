@@ -53,6 +53,9 @@
 
 ![接口分析](https://github.com/stars-coding/starsapi/blob/master/image/接口分析.png)
 
+- 系统架构
+
+![系统架构](https://github.com/stars-coding/starsapi/blob/master/image/系统架构.png)
 
 ## 技术堆栈
 
